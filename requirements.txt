@@ -1,0 +1,4 @@
+kafka-python>=3.0
+pillow
+fastapi
+uvicorn
