@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>paraTile / distributed image processing</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #edeae3;
+    --surface: #f7f5ef;
+    --surface-strong: #ffffff;
+    --fg: #0a0a0a;
+    --dim: #77736b;
+    --line: rgba(10, 10, 10, .16);
+    --line-strong: rgba(10, 10, 10, .5);
+    --accent: #ff2d00;
+    --accent-soft: rgba(255, 45, 0, .1);
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #10100f;
+    --surface: #171715;
+    --surface-strong: #20201d;
+    --fg: #f0eee8;
+    --dim: #969188;
+    --line: rgba(240, 238, 232, .16);
+    --line-strong: rgba(240, 238, 232, .5);
+    --accent: #ff6a3d;
+    --accent-soft: rgba(255, 106, 61, .14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background-color: var(--bg);
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 32px 32px;
+    color: var(--fg);
+    font: 14px/1.6 Inter, ui-sans-serif, system-ui, sans-serif;
+    transition: background-color .2s, color .2s;
+  }
+  button, input, select { font: inherit; border-radius: 0; }
+  .nav { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 16px max(20px, calc((100vw - 1040px) / 2)); border-bottom: 1px solid var(--fg); background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 2; }
+  .logo { color: var(--fg); font-weight: 800; letter-spacing: -.04em; }
+  .logo span, .accent { color: var(--accent); }
+  .nav-meta, .eyebrow, .label, th, .dim, .theme-toggle { color: var(--dim); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .theme-toggle { color: var(--fg); background: transparent; border: 1px solid var(--line-strong); padding: 7px 10px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+  main { max-width: 1040px; margin: 0 auto; padding: 54px 20px 92px; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(220px, .6fr); align-items: end; gap: 40px; padding-bottom: 34px; border-bottom: 1px solid var(--fg); }
+  h1 { margin: 12px 0 10px; font-size: clamp(42px, 8vw, 82px); line-height: .9; letter-spacing: -.075em; }
+  .hero-copy { max-width: 430px; color: var(--dim); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+  .hero-mark { justify-self: end; font-size: clamp(90px, 14vw, 150px); line-height: .7; color: var(--accent); font-weight: 800; letter-spacing: -.12em; }
+  h2 {
+    display: flex; align-items: center; gap: 12px; margin: 42px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--fg);
+    font: 600 12px "JetBrains Mono", ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+  }
+  h2 span { color: var(--accent); }
+  h2::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+  .big { font-size: 72px; line-height: .95; letter-spacing: -.08em; color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  th, td { text-align: left; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  th { font-weight: normal; }
+  td { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+  dl { display: grid; grid-template-columns: 140px 1fr; gap: 8px 18px; margin: 0; }
+  dt { color: var(--dim); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; text-transform: uppercase; }
+  dd { margin: 0; word-break: break-all; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+  pre {
+    margin: 8px 0 0; padding: 14px; border: 1px solid var(--line-strong); background: var(--surface); 
+    overflow-x: auto;
+    color: var(--accent);
+    font: 12px/1.6 "JetBrains Mono", ui-monospace, monospace;
+  }
+  .process-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  select, button, input[type=file] {
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    padding: 9px 10px;
+  }
+  button { cursor: pointer; border-color: var(--accent); color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; }
+  button:hover { background: var(--accent); color: var(--bg); }
+  .bar { height: 6px; margin: 18px 0 8px; background: var(--line); }
+  .bar div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .images { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .images figure { margin: 0; }
+  .images img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid var(--line-strong); background: var(--surface); min-height: 60px; }
+  .images .label { margin: 0 0 6px; }
+  .process-grid > div > .label { display: block; margin-bottom: 6px; }
+  .label::before { content: "// "; color: var(--accent); }
+  @media (max-width: 680px) { .hero, .process-grid { grid-template-columns: 1fr; } .hero-mark { justify-self: start; margin-top: 18px; } }
+  @media (max-width: 560px) { main { padding-top: 34px; } .nav-meta { display: none; } .images { grid-template-columns: 1fr; } dl { grid-template-columns: 100px 1fr; } }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="logo">para<span>Tile</span><span>.</span></div>
+  <div class="nav-meta">distributed image processing</div>
+  <button class="theme-toggle" id="themeToggle" type="button">dark mode</button>
+</nav>
+
+<main>
+  <header class="hero">
+    <div>
+      <div class="eyebrow">kafka / one master / any number of workers</div>
+      <h1>Images,<br><span class="accent">parallel.</span></h1>
+      <div class="hero-copy">Send one image through a coordinated tile pipeline. Watch the workers move, then compare the result.</div>
+    </div>
+    <div class="hero-mark" aria-hidden="true">///</div>
+  </header>
+
+  <h2><span>[01]</span> / Workers</h2>
+  <div class="big" id="count">0</div>
+  <div class="dim">live workers, up to <span id="parts">-</span> can run in parallel</div>
+  <table>
+    <thead><tr><th>worker</th><th>host</th><th>tiles done</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="3" class="dim">no workers connected yet</td></tr></tbody>
+  </table>
+
+  <h2><span>[02]</span> / Connect</h2>
+  <dl>
+    <dt>master</dt><dd id="master">-</dd>
+    <dt>kafka</dt><dd id="kafka">-</dd>
+    <dt>topics</dt><dd id="topics">-</dd>
+  </dl>
+  <p class="label">add a worker on any machine</p>
+  <pre id="cmd">-</pre>
+
+  <h2><span>[03]</span> / Process</h2>
+  <div class="process-grid">
+    <div>
+      <label class="label" for="file">source image</label>
+      <div class="row">
+        <input type="file" id="file" accept="image/*">
+        <select id="filter" aria-label="Image filter">
+          <option value="blur">blur</option>
+          <option value="invert">invert</option>
+        </select>
+        <button id="go" type="button">run pipeline</button>
+      </div>
+      <div class="bar"><div id="fill"></div></div>
+      <div id="status" class="dim">pick an image and press run</div>
+      <div id="by" class="dim"></div>
+    </div>
+    <div class="images">
+      <figure><div class="label">original</div><img id="before" alt="Original preview"></figure>
+      <figure><div class="label">result</div><img id="after" alt="Processed preview"></figure>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const savedTheme = localStorage.getItem("paratile-theme");
+if (savedTheme === "dark") document.documentElement.dataset.theme = "dark";
+$("themeToggle").textContent = document.documentElement.dataset.theme === "dark" ? "light mode" : "dark mode";
+$("themeToggle").onclick = () => {
+  const isDark = document.documentElement.dataset.theme !== "dark";
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  localStorage.setItem("paratile-theme", isDark ? "dark" : "light");
+  $("themeToggle").textContent = isDark ? "light mode" : "dark mode";
+};
+
+async function loadInfo() {
+  const info = await (await fetch("/api/info")).json();
+  const port = location.port || "80";
+  $("parts").textContent = info.partitions;
+  $("master").textContent = "http://" + info.ip + ":" + port;
+  $("kafka").textContent = info.remote_kafka;
+  $("topics").textContent = info.topics.join(", ");
+  $("cmd").textContent = "KAFKA=" + info.remote_kafka + " python worker.py";
+}
+
+async function loadWorkers() {
+  const data = await (await fetch("/api/workers")).json();
+  $("count").textContent = data.count;
+  if (data.count === 0) {
+    $("rows").innerHTML = '<tr><td colspan="3" class="dim">no workers connected yet</td></tr>';
+    return;
+  }
+  $("rows").innerHTML = data.workers
+    .map(w => "<tr><td>" + w.id + "</td><td>" + w.host + "</td><td>" + w.tiles + "</td></tr>")
+    .join("");
+}
+
+async function poll(job) {
+  const s = await (await fetch("/api/job/" + job)).json();
+  $("fill").style.width = (100 * s.done / s.total) + "%";
+  $("status").textContent = "tiles " + s.done + " / " + s.total;
+  if (s.done === 0 && $("count").textContent === "0") {
+    $("status").textContent += "  (no workers connected, start one)";
+  }
+  $("by").textContent = Object.entries(s.by_worker).map(([w, n]) => w + " x" + n).join("   ");
+  if (s.finished) {
+    $("after").src = "/api/job/" + job + "/image";
+    return;
+  }
+  setTimeout(() => poll(job), 400);
+}
+
+$("go").onclick = async () => {
+  const file = $("file").files[0];
+  if (!file) return;
+  $("before").src = URL.createObjectURL(file);
+  $("after").removeAttribute("src");
+  $("fill").style.width = "0";
+  $("status").textContent = "sending...";
+  const res = await fetch("/api/process?filter=" + $("filter").value, { method: "POST", body: file });
+  if (!res.ok) {
+    $("status").textContent = "error: " + await res.text();
+    return;
+  }
+  poll((await res.json()).job);
+};
+
+loadInfo();
+loadWorkers();
+setInterval(loadWorkers, 2000);
+</script>
+</body>
+</html>
